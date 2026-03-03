@@ -76,6 +76,35 @@ extension AttributedStringMarkdownParser {
       #expect(summary == "Use `code` here")
     }
 
+    @Test func detailsBlockWithNestedCodeBlockIsPreserved() throws {
+      // given
+      let markdown = """
+        <details><summary>Enclosed Code</summary>
+        ```
+        log output: first line
+        log output: second line
+        ```
+        </details>
+        """
+
+      // when
+      let attributed = try parser.attributedString(for: markdown)
+      let blocks = attributed.blockRuns()
+
+      // then — the whole thing must be a single details block, not fragmented
+      #expect(blocks.count == 1)
+      let hint = try #require(
+        {
+          if case .codeBlock(let h) = blocks.first?.intent?.kind { return h }
+          return nil
+        }()
+      )
+      #expect(hint == "_textual_details:Enclosed Code")
+      let body = String(attributed[blocks[0].range].characters[...])
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      #expect(body == "```\nlog output: first line\nlog output: second line\n```")
+    }
+
     @Test func encodedBacktickDecodesBackToBacktick() throws {
       // given — simulate the extraction logic in BlockContent
       let languageHint = "_textual_details:Use &#96;code&#96; here"

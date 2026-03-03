@@ -31,6 +31,20 @@ extension StructuredText {
         } label: {
           InlineText(markdown: summary)
         }
+        // Register this view's frame as an exclusion rect so the text-selection
+        // overlay (NSTextInteractionView / UIKitTextInteractionOverlay) passes
+        // pointer events through to the DisclosureGroup toggle rather than
+        // consuming them. This is the same mechanism used by Overflow for
+        // scrollable code blocks and tables.
+        .background(
+          GeometryReader { geometry in
+            Color.clear
+              .preference(
+                key: OverflowFrameKey.self,
+                value: [geometry.frame(in: .textContainer)]
+              )
+          }
+        )
       #endif
     }
   }
