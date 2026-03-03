@@ -25,12 +25,26 @@ public struct AttributedStringMarkdownParser: MarkupParser {
   public func attributedString(for input: String) throws -> AttributedString {
     try processor.expand(
       AttributedString(
-        markdown: input,
+        markdown: preprocessDetails(input),
         including: \.textual,
         options: options,
         baseURL: baseURL
       )
     )
+  }
+
+  // Transforms <details>/<summary> HTML blocks into fenced code blocks with a
+  // `_textual_details:Summary` language hint so Foundation's markdown parser can
+  // represent them as a known PresentationIntent that the rendering layer picks up.
+  private func preprocessDetails(_ input: String) -> String {
+    input.replacing(
+      /(?s)<details>\s*<summary>(.*?)<\/summary>(.*?)<\/details>/
+    ) { match in
+      let summary = match.output.1.trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacing(/`/, with: "&#96;")
+      let body = match.output.2.trimmingCharacters(in: .whitespacesAndNewlines)
+      return "```_textual_details:\(summary)\n\(body)\n```"
+    }
   }
 }
 
