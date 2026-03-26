@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-  name: "textual",
+  name: "Textual",
   platforms: [
     .macOS(.v15),
     .iOS(.v18),
