@@ -26,25 +26,28 @@ extension StructuredText {
           StructuredText(markdown: bodyMarkdown)
         }
       #else
-        DisclosureGroup(isExpanded: $isExpanded) {
-          StructuredText(markdown: bodyMarkdown)
-        } label: {
-          InlineText(markdown: summary)
-        }
-        // Register this view's frame as an exclusion rect so the text-selection
-        // overlay (NSTextInteractionView / UIKitTextInteractionOverlay) passes
-        // pointer events through to the DisclosureGroup toggle rather than
-        // consuming them. This is the same mechanism used by Overflow for
-        // scrollable code blocks and tables.
-        .background(
-          GeometryReader { geometry in
-            Color.clear
-              .preference(
-                key: OverflowFrameKey.self,
-                value: [geometry.frame(in: .textContainer)]
-              )
+        VStack(alignment: .leading, spacing: 0) {
+          HStack(alignment: .firstTextBaseline, spacing: 4) {
+            // Only the toggle button's frame is registered as a text-selection
+            // exclusion rect.  This lets the overlay pass pointer events through
+            // to the button while leaving the summary InlineText in normal
+            // selection territory.
+            Button {
+              withAnimation { isExpanded.toggle() }
+            } label: {
+              SwiftUI.Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .imageScale(.small)
+            }
+            .buttonStyle(.plain)
+            .textual.interactiveRegion()
+
+            InlineText(markdown: summary)
           }
-        )
+
+          if isExpanded {
+            StructuredText(markdown: bodyMarkdown)
+          }
+        }
       #endif
     }
   }
