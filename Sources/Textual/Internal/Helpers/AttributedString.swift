@@ -123,6 +123,13 @@ extension AttributedString {
         (position + 1 < boundaries.count)
         ? boundaries[position + 1].index
         : runs.endIndex
+
+      // Guard against empty runs (nextRunIndex == startIndex)
+      guard nextRunIndex != runs.startIndex else {
+        let lowerBound = runs[boundary.index].range.lowerBound
+        return BlockRun(intent: boundary.intent, range: lowerBound..<lowerBound)
+      }
+
       let lastRunIndex = runs.index(before: nextRunIndex)
       let lowerBound = runs[boundary.index].range.lowerBound
       let upperBound = runs[lastRunIndex].range.upperBound
