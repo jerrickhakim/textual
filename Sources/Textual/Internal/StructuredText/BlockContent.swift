@@ -2,12 +2,16 @@ import SwiftUI
 
 extension StructuredText {
   struct BlockContent<Content: AttributedStringProtocol>: View {
+    @Environment(\.chatComponentRenderer) private var chatRenderer
+
     private let parent: PresentationIntent.IntentType?
     private let content: Content
+    private let useLazyLayout: Bool
 
-    init(parent: PresentationIntent.IntentType? = nil, content: Content) {
+    init(parent: PresentationIntent.IntentType? = nil, content: Content, useLazyLayout: Bool = false) {
       self.parent = parent
       self.content = content
+      self.useLazyLayout = useLazyLayout
     }
 
     var body: some View {
@@ -24,10 +28,27 @@ extension StructuredText {
         return StableBlockEntry(id: "\(hash).\(occurrence)", index: index)
       }
 
-      BlockVStack {
-        ForEach(entries) { entry in
-          let run = runs[entry.index]
-          Block(intent: run.intent, content: content[run.range])
+      let useLazy = useLazyLayout || chatRenderer != nil
+
+      if useLazy {
+        LazyVStack(alignment: .leading, spacing: 0) {
+          ForEach(entries) { entry in
+            let run = runs[entry.index]
+            let substring = content[run.range]
+
+            if let component = substring.runs.first(where: { $0[ChatComponentKey.self] != nil })?[ChatComponentKey.self] {
+              ChatComponentView(data: component)
+            } else {
+              Block(intent: run.intent, content: substring)
+            }
+          }
+        }
+      } else {
+        BlockVStack {
+          ForEach(entries) { entry in
+            let run = runs[entry.index]
+            Block(intent: run.intent, content: content[run.range])
+          }
         }
       }
     }
