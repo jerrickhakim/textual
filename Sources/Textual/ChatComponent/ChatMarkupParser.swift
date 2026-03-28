@@ -16,8 +16,8 @@ public struct ChatMarkupParser: MarkupParser {
     }
 
     private enum SegmentCache {
-        static let markdown = NSCache<NSString, AttributedStringCacheEntry>()
-        static let component = NSCache<NSString, AttributedStringCacheEntry>()
+        nonisolated(unsafe) static let markdown = NSCache<NSString, AttributedStringCacheEntry>()
+        nonisolated(unsafe) static let component = NSCache<NSString, AttributedStringCacheEntry>()
     }
 
     public init(baseURL: URL? = nil) {
@@ -57,7 +57,7 @@ public struct ChatMarkupParser: MarkupParser {
 
     /// Scans input for handlebars blocks and emits interleaved markdown/component segments.
     /// Tracks code fence state to avoid parsing handlebars inside ``` blocks.
-    func extractSegments(from input: String) -> [ExtractionSegment] {
+    private func extractSegments(from input: String) -> [ExtractionSegment] {
         var segments: [ExtractionSegment] = []
         var markdownBuffer = ""
         var i = input.startIndex
@@ -168,12 +168,12 @@ public struct ChatMarkupParser: MarkupParser {
 
     // MARK: - Tag Content Parsing
 
-    struct ParsedTag {
+    private struct ParsedTag {
         let name: String
         let attributes: [String: String]
     }
 
-    func parseTagContent(_ content: String) -> ParsedTag {
+    private func parseTagContent(_ content: String) -> ParsedTag {
         let trimmed = content.trimmingCharacters(in: .whitespaces)
         var scanner = trimmed[...]
 
