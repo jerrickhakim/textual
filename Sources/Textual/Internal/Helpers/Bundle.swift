@@ -5,7 +5,7 @@ private class Token {}
 extension Bundle {
   // NB: Alternative to `Bundle.module` that does not crash when the bundle is not found
   static let textual: Bundle? = {
-    let bundleName = "textual_Textual"
+    let bundleName = "Textual_Textual"
 
     let overrides: [URL]
     #if DEBUG
