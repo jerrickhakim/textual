@@ -7,33 +7,36 @@ public struct ChatMarkupParser: MarkupParser {
     private let baseURL: URL?
     private let options: AttributedString.MarkdownParsingOptions
 
+    private final class AttributedStringCacheEntry: NSObject {
+        let value: AttributedString
+
+        init(_ value: AttributedString) {
+            self.value = value
+        }
+    }
+
+    private enum SegmentCache {
+        static let markdown = NSCache<NSString, AttributedStringCacheEntry>()
+        static let component = NSCache<NSString, AttributedStringCacheEntry>()
+    }
+
     public init(baseURL: URL? = nil) {
         self.baseURL = baseURL
         self.options = .init()
     }
 
     public func attributedString(for input: String) throws -> AttributedString {
-        // 1. Extract handlebars components and replace with sentinels
-        let extraction = extractComponents(from: input)
+        let segments = extractSegments(from: input)
+        var result = AttributedString()
 
-        // 2. Parse the cleaned markdown via Foundation
-        var result = try AttributedString(
-            markdown: extraction.cleanedMarkdown,
-            including: \.textual,
-            options: options,
-            baseURL: baseURL
-        )
-
-        // 3. Find sentinels in the result and inject ChatComponentData attributes
-        let characters = String(result.characters)
-        var searchStart = characters.startIndex
-        for (index, component) in extraction.components.enumerated() {
-            let sentinel = Self.sentinel(for: index)
-            guard let range = characters.range(of: sentinel, range: searchStart..<characters.endIndex) else {
-                continue
+        for segment in segments {
+            switch segment {
+            case .markdown(let markdown):
+                guard !markdown.isEmpty else { continue }
+                result += try parsedMarkdownSegment(markdown)
+            case .component(let component):
+                result += try parsedComponentSegment(component)
             }
-            injectComponent(component, range: range, in: characters, into: &result)
-            searchStart = range.upperBound
         }
 
         return result
@@ -47,19 +50,25 @@ public struct ChatMarkupParser: MarkupParser {
 
     // MARK: - Component Extraction
 
-    struct ExtractionResult {
-        let cleanedMarkdown: String
-        let components: [ChatComponentData]
+    private enum ExtractionSegment {
+        case markdown(String)
+        case component(ChatComponentData)
     }
 
-    /// Scans input for handlebars blocks, extracts component data, and replaces with sentinels.
+    /// Scans input for handlebars blocks and emits interleaved markdown/component segments.
     /// Tracks code fence state to avoid parsing handlebars inside ``` blocks.
-    func extractComponents(from input: String) -> ExtractionResult {
-        var components: [ChatComponentData] = []
-        var result = ""
+    func extractSegments(from input: String) -> [ExtractionSegment] {
+        var segments: [ExtractionSegment] = []
+        var markdownBuffer = ""
         var i = input.startIndex
         var insideCodeFence = false
         var atLineStart = true
+
+        func flushMarkdownBuffer() {
+            guard !markdownBuffer.isEmpty else { return }
+            segments.append(.markdown(markdownBuffer))
+            markdownBuffer.removeAll(keepingCapacity: true)
+        }
 
         while i < input.endIndex {
             // Track code fences at line start
@@ -76,14 +85,14 @@ public struct ChatMarkupParser: MarkupParser {
 
             // Inside code fence — pass through verbatim
             if insideCodeFence {
-                result.append(input[i])
+                markdownBuffer.append(input[i])
                 i = input.index(after: i)
                 continue
             }
 
             // Look for {{ opening
             guard input[i...].hasPrefix("{{") else {
-                result.append(input[i])
+                markdownBuffer.append(input[i])
                 i = input.index(after: i)
                 continue
             }
@@ -101,7 +110,7 @@ public struct ChatMarkupParser: MarkupParser {
 
             // Find closing }}
             guard let closeRange = input[afterOpen...].range(of: "}}") else {
-                result.append(contentsOf: "{{")
+                markdownBuffer.append(contentsOf: "{{")
                 i = afterOpen
                 continue
             }
@@ -112,12 +121,13 @@ public struct ChatMarkupParser: MarkupParser {
             guard let componentType = ChatComponentType(rawValue: parsed.name) else {
                 // Unknown component — pass through verbatim
                 let fullTag = String(input[openStart..<closeRange.upperBound])
-                result.append(contentsOf: fullTag)
+                markdownBuffer.append(contentsOf: fullTag)
                 i = closeRange.upperBound
                 continue
             }
 
             let afterTag = closeRange.upperBound
+            flushMarkdownBuffer()
 
             // Look for closing tag {{/name}} to determine block vs self-closing
             let closingTag = "{{/\(parsed.name)}}"
@@ -133,10 +143,7 @@ public struct ChatMarkupParser: MarkupParser {
                     attributes: parsed.attributes,
                     content: blockContent
                 )
-                let sentinelStr = Self.sentinel(for: components.count)
-                components.append(component)
-                result.append(contentsOf: sentinelStr)
-                result.append("\n\n")
+                segments.append(.component(component))
                 i = closingRange.upperBound
             } else {
                 // Self-closing component
@@ -144,15 +151,19 @@ public struct ChatMarkupParser: MarkupParser {
                     type: componentType,
                     attributes: parsed.attributes
                 )
-                let sentinelStr = Self.sentinel(for: components.count)
-                components.append(component)
-                result.append(contentsOf: sentinelStr)
-                result.append("\n\n")
+                segments.append(.component(component))
                 i = afterTag
+            }
+
+            // Components render as standalone blocks, so swallow immediately
+            // following blank lines to avoid duplicating spacing work.
+            while i < input.endIndex && (input[i] == "\n" || input[i] == "\r") {
+                i = input.index(after: i)
             }
         }
 
-        return ExtractionResult(cleanedMarkdown: result, components: components)
+        flushMarkdownBuffer()
+        return segments
     }
 
     // MARK: - Tag Content Parsing
@@ -198,6 +209,64 @@ public struct ChatMarkupParser: MarkupParser {
     }
 
     // MARK: - Component Injection
+
+    private func parsedMarkdownSegment(_ markdown: String) throws -> AttributedString {
+        let key = cacheKey(prefix: "md", payload: markdown)
+        if let cached = SegmentCache.markdown.object(forKey: key as NSString) {
+            return cached.value
+        }
+
+        let parsed = try AttributedString(
+            markdown: markdown,
+            including: \.textual,
+            options: options,
+            baseURL: baseURL
+        )
+        SegmentCache.markdown.setObject(
+            AttributedStringCacheEntry(parsed),
+            forKey: key as NSString,
+            cost: markdown.utf8.count
+        )
+        return parsed
+    }
+
+    private func parsedComponentSegment(_ component: ChatComponentData) throws -> AttributedString {
+        let key = cacheKey(prefix: "component", payload: componentCachePayload(component))
+        if let cached = SegmentCache.component.object(forKey: key as NSString) {
+            return cached.value
+        }
+
+        let sentinel = Self.sentinel(for: 0)
+        var parsed = try AttributedString(
+            markdown: sentinel + "\n\n",
+            including: \.textual,
+            options: options,
+            baseURL: baseURL
+        )
+        let characters = String(parsed.characters)
+        if let range = characters.range(of: sentinel) {
+            injectComponent(component, range: range, in: characters, into: &parsed)
+        }
+
+        SegmentCache.component.setObject(
+            AttributedStringCacheEntry(parsed),
+            forKey: key as NSString
+        )
+        return parsed
+    }
+
+    private func cacheKey(prefix: String, payload: String) -> String {
+        let baseURLKey = baseURL?.absoluteString ?? ""
+        return "\(prefix)|\(baseURLKey)|\(payload)"
+    }
+
+    private func componentCachePayload(_ component: ChatComponentData) -> String {
+        let attrs = component.attributes
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: "&")
+        return "\(component.type.rawValue)|\(attrs)|\(component.content)"
+    }
 
     private func injectComponent(
         _ component: ChatComponentData,

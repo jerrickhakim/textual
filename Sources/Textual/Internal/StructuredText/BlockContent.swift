@@ -17,23 +17,12 @@ extension StructuredText {
     var body: some View {
       let runs = content.blockRuns(parent: parent)
 
-      // Compute stable content-hash IDs so unchanged blocks skip re-render.
-      var hashCounts: [Int: Int] = [:]
-      let entries: [StableBlockEntry] = runs.indices.map { index in
-        let run = runs[index]
-        let text = String(content[run.range].characters)
-        let hash = text.hashValue
-        let occurrence = hashCounts[hash, default: 0]
-        hashCounts[hash] = occurrence + 1
-        return StableBlockEntry(id: "\(hash).\(occurrence)", index: index)
-      }
-
       let useLazy = useLazyLayout || chatRenderer != nil
 
       if useLazy {
         LazyVStack(alignment: .leading, spacing: 12) {
-          ForEach(entries) { entry in
-            let run = runs[entry.index]
+          ForEach(runs.indices, id: \.self) { index in
+            let run = runs[index]
             let substring = content[run.range]
 
             if let component = substring.runs.first(where: { $0[ChatComponentKey.self] != nil })?[ChatComponentKey.self] {
@@ -45,8 +34,8 @@ extension StructuredText {
         }
       } else {
         BlockVStack {
-          ForEach(entries) { entry in
-            let run = runs[entry.index]
+          ForEach(runs.indices, id: \.self) { index in
+            let run = runs[index]
             Block(intent: run.intent, content: content[run.range])
           }
         }
@@ -54,11 +43,6 @@ extension StructuredText {
     }
   }
 
-  /// Lightweight wrapper giving each block run a stable, content-based identity.
-  fileprivate struct StableBlockEntry: Identifiable {
-    let id: String
-    let index: Int
-  }
 }
 
 extension StructuredText {
