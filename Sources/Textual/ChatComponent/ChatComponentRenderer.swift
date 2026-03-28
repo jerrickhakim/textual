@@ -4,7 +4,7 @@ import SwiftUI
 /// The app implements this to map component data to native SwiftUI views.
 @MainActor
 public protocol ChatComponentRendering: Sendable {
-    @ViewBuilder func view(for component: ChatComponentData) -> AnyView
+    func view(for component: ChatComponentData) -> AnyView
 }
 
 /// Environment key for the chat component renderer.
