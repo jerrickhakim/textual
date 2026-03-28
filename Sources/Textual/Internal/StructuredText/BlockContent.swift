@@ -31,7 +31,7 @@ extension StructuredText {
       let useLazy = useLazyLayout || chatRenderer != nil
 
       if useLazy {
-        LazyVStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 12) {
           ForEach(entries) { entry in
             let run = runs[entry.index]
             let substring = content[run.range]
