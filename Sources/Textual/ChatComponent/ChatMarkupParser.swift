@@ -25,9 +25,15 @@ public struct ChatMarkupParser: MarkupParser {
         )
 
         // 3. Find sentinels in the result and inject ChatComponentData attributes
+        let characters = String(result.characters)
+        var searchStart = characters.startIndex
         for (index, component) in extraction.components.enumerated() {
             let sentinel = Self.sentinel(for: index)
-            injectComponent(component, sentinel: sentinel, into: &result)
+            guard let range = characters.range(of: sentinel, range: searchStart..<characters.endIndex) else {
+                continue
+            }
+            injectComponent(component, range: range, in: characters, into: &result)
+            searchStart = range.upperBound
         }
 
         return result
@@ -195,12 +201,10 @@ public struct ChatMarkupParser: MarkupParser {
 
     private func injectComponent(
         _ component: ChatComponentData,
-        sentinel: String,
+        range: Range<String.Index>,
+        in characters: String,
         into attributedString: inout AttributedString
     ) {
-        let characters = String(attributedString.characters)
-        guard let range = characters.range(of: sentinel) else { return }
-
         let startOffset = characters.distance(from: characters.startIndex, to: range.lowerBound)
         let endOffset = characters.distance(from: characters.startIndex, to: range.upperBound)
 
