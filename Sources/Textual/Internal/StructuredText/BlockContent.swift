@@ -33,9 +33,13 @@ extension StructuredText {
           }
         }
       } else {
+        // BlockVStack relies on BlockSpacingKey preferences emitted by each
+        // block's style. FrozenBlock's Equatable conformance suppresses body
+        // evaluation (and therefore preference emission) for unchanged blocks,
+        // so we use Block directly here to keep spacing working.
         BlockVStack {
           ForEach(identified) { item in
-            FrozenBlock(contentHash: item.id, intent: item.run.intent, content: content[item.run.range])
+            Block(intent: item.run.intent, content: content[item.run.range])
           }
         }
       }
