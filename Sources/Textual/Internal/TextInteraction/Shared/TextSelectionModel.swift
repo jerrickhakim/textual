@@ -60,11 +60,16 @@
         return
       }
 
-      // Try to reconcile the selected text range
-      self.selectedRange = layoutCollection.reconcileRange(
+      // Try to reconcile the selected text range. If reconciliation fails
+      // (e.g. layout structure changed too much), keep the existing selection
+      // rather than clearing it — the user's selection intent should survive
+      // transient layout changes during streaming.
+      if let reconciled = layoutCollection.reconcileRange(
         selectedRange,
         from: oldLayoutCollection
-      )
+      ) {
+        self.selectedRange = reconciled
+      }
     }
 
     func setCoordinator(_ coordinator: TextSelectionCoordinator?) {

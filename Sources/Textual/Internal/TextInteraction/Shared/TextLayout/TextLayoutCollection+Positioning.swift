@@ -148,8 +148,11 @@
     }
 
     func reconcileRange(_ range: TextRange, from other: any TextLayoutCollection) -> TextRange? {
+      // Allow reconciliation when layouts grow (e.g. streaming appends new blocks).
+      // The selected range refers to layouts that existed before; as long as those
+      // layouts are still present at the same indices, positions can be mapped.
       guard
-        layouts.count == other.layouts.count,
+        layouts.count >= other.layouts.count,
         let start = reconcilePosition(range.start, from: other),
         let end = reconcilePosition(range.end, from: other)
       else {
