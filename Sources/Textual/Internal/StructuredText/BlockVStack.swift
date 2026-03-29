@@ -40,8 +40,6 @@ extension StructuredText {
     @Environment(\.listItemSpacingEnabled) private var listItemSpacingEnabled
     @Environment(\.resolvedListItemSpacing) private var resolvedListItemSpacing
 
-    @State private var blockSpacing = BlockSpacing()
-
     private let content: Content
 
     init(_ content: Content) {
@@ -49,13 +47,14 @@ extension StructuredText {
     }
 
     var body: some View {
-      // Read the block spacing preference and apply it as a layout value
-      content
-        .onPreferenceChange(BlockSpacingKey.self) { @MainActor value in
-          // Override with the resolved list item spacing if enabled
-          blockSpacing = listItemSpacingEnabled ? resolvedListItemSpacing : value
-        }
-        .layoutValue(key: BlockSpacingKey.self, value: blockSpacing)
+      // Layout values set by .textual.blockSpacing() propagate up from the
+      // block styles synchronously. We only need to override for list items.
+      if listItemSpacingEnabled {
+        content
+          .layoutValue(key: BlockSpacingKey.self, value: resolvedListItemSpacing)
+      } else {
+        content
+      }
     }
   }
 
