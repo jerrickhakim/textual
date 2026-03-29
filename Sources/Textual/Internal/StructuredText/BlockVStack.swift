@@ -61,6 +61,7 @@ extension StructuredText {
   fileprivate struct BlockVStackLayout: Layout {
     struct Cache {
       let spacings: [CGFloat]
+      var sizes: [CGSize] = []
     }
 
     let textAlignment: TextAlignment
@@ -90,8 +91,11 @@ extension StructuredText {
 
       var size = CGSize.zero
 
-      for view in subviews {
-        let viewSize = view.sizeThatFits(.init(width: proposal.width, height: nil))
+      cache.sizes = subviews.map { view in
+        view.sizeThatFits(.init(width: proposal.width, height: nil))
+      }
+
+      for viewSize in cache.sizes {
         size.height += viewSize.height
         size.width = max(size.width, viewSize.width)
       }
@@ -110,7 +114,7 @@ extension StructuredText {
 
       for (index, view) in zip(subviews.indices, subviews) {
         let viewProposal = ProposedViewSize(width: proposal.width, height: nil)
-        let viewSize = view.sizeThatFits(viewProposal)
+        let viewSize = index < cache.sizes.count ? cache.sizes[index] : view.sizeThatFits(viewProposal)
 
         var point = bounds.origin
         let alignment = view[BlockAlignmentKey.self] ?? textAlignment

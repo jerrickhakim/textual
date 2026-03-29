@@ -108,7 +108,7 @@ public struct StructuredText: View {
   /// Prevents reparsing when views are recreated (e.g. scrolled off/on in a LazyVStack).
   private static let parseCache: NSCache<NSString, ParseCacheEntry> = {
     let cache = NSCache<NSString, ParseCacheEntry>()
-    cache.countLimit = 64
+    cache.countLimit = 256
     return cache
   }()
 

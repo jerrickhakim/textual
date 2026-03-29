@@ -12,23 +12,29 @@ import SwiftUI
 struct TextLinkInteraction: ViewModifier {
   @Environment(\.openURL) private var openURL
 
+  let hasLinks: Bool
+
   func body(content: Content) -> some View {
     #if TEXTUAL_ENABLE_LINKS
-      content
-        .overlayPreferenceValue(Text.LayoutKey.self) { value in
-          if let anchoredLayout = value.first {
-            GeometryReader { geometry in
-              Color.clear
-                .contentShape(.rect)
-                .gesture(
-                  tap(
-                    origin: geometry[anchoredLayout.origin],
-                    layout: anchoredLayout.layout
+      if hasLinks {
+        content
+          .overlayPreferenceValue(Text.LayoutKey.self) { value in
+            if let anchoredLayout = value.first {
+              GeometryReader { geometry in
+                Color.clear
+                  .contentShape(.rect)
+                  .gesture(
+                    tap(
+                      origin: geometry[anchoredLayout.origin],
+                      layout: anchoredLayout.layout
+                    )
                   )
-                )
+              }
             }
           }
-        }
+      } else {
+        content
+      }
     #else
       content
     #endif

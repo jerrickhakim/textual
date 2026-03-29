@@ -35,6 +35,8 @@ struct HighlightedTextFragment: View {
     TextFragment(model.highlightedCode ?? AttributedString(content))
       .foregroundStyle(theme.foregroundColor)
       .task(id: code) {
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
         await model.tokenize(code: code, languageHint: languageHint, theme: theme)
       }
       .onChange(of: Tuple(model.tokens, textEnvironment)) { _, newValue in

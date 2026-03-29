@@ -15,7 +15,7 @@ import SwiftUI
 #if TEXTUAL_ENABLE_TEXT_SELECTION
   @Observable
   final class TextSelectionCoordinator {
-    private var models: [WeakBox<TextSelectionModel>] = []
+    @ObservationIgnored private var models: [WeakBox<TextSelectionModel>] = []
 
     func register(_ model: TextSelectionModel) {
       models.append(WeakBox(model))
