@@ -28,20 +28,41 @@ extension StructuredText {
             if let component = substring.runs.first(where: { $0[ChatComponentKey.self] != nil })?[ChatComponentKey.self] {
               ChatComponentView(data: component)
             } else {
-              Block(intent: item.run.intent, content: substring)
+              FrozenBlock(contentHash: item.id, intent: item.run.intent, content: substring)
             }
           }
         }
       } else {
         BlockVStack {
           ForEach(identified) { item in
-            Block(intent: item.run.intent, content: content[item.run.range])
+            FrozenBlock(contentHash: item.id, intent: item.run.intent, content: content[item.run.range])
           }
         }
       }
     }
   }
 
+}
+
+// MARK: - Frozen Block
+//
+// Equatable wrapper around Block. SwiftUI compares FrozenBlock instances by
+// contentHash alone. When the hash hasn't changed (i.e. the block's text and
+// intent are identical), SwiftUI skips body evaluation entirely — no layout,
+// no text shaping, no syntax highlighting for that block.
+
+private struct FrozenBlock: View, Equatable {
+  let contentHash: Int
+  let intent: PresentationIntent.IntentType?
+  let content: AttributedSubstring
+
+  nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.contentHash == rhs.contentHash
+  }
+
+  var body: some View {
+    StructuredText.Block(intent: intent, content: content)
+  }
 }
 
 // MARK: - Stable Block Identity
