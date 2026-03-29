@@ -16,33 +16,57 @@ extension StructuredText {
 
     var body: some View {
       let runs = content.blockRuns(parent: parent)
+      let identified = StableBlockRun.from(runs: runs, content: content)
 
       let useLazy = useLazyLayout || chatRenderer != nil
 
       if useLazy {
         LazyVStack(alignment: .leading, spacing: 12) {
-          ForEach(runs.indices, id: \.self) { index in
-            let run = runs[index]
-            let substring = content[run.range]
+          ForEach(identified) { item in
+            let substring = content[item.run.range]
 
             if let component = substring.runs.first(where: { $0[ChatComponentKey.self] != nil })?[ChatComponentKey.self] {
               ChatComponentView(data: component)
             } else {
-              Block(intent: run.intent, content: substring)
+              Block(intent: item.run.intent, content: substring)
             }
           }
         }
       } else {
         BlockVStack {
-          ForEach(runs.indices, id: \.self) { index in
-            let run = runs[index]
-            Block(intent: run.intent, content: content[run.range])
+          ForEach(identified) { item in
+            Block(intent: item.run.intent, content: content[item.run.range])
           }
         }
       }
     }
   }
 
+}
+
+// MARK: - Stable Block Identity
+//
+// Wraps each BlockRun with a content-hash-based ID so SwiftUI can skip
+// re-rendering unchanged blocks during streaming updates. Only the last
+// (actively streaming) block gets a new ID; earlier blocks keep theirs.
+
+private struct StableBlockRun: Identifiable {
+  let id: Int
+  let run: AttributedString.BlockRuns.BlockRun
+
+  static func from(
+    runs: AttributedString.BlockRuns,
+    content: some AttributedStringProtocol
+  ) -> [StableBlockRun] {
+    runs.enumerated().map { index, run in
+      let text = String(content[run.range].characters)
+      var hasher = Hasher()
+      hasher.combine(index)
+      hasher.combine(String(describing: run.intent))
+      hasher.combine(text)
+      return StableBlockRun(id: hasher.finalize(), run: run)
+    }
+  }
 }
 
 extension StructuredText {

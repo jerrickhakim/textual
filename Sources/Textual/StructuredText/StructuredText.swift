@@ -104,6 +104,21 @@ import SwiftUI
 public struct StructuredText: View {
   @State private var attributedString = AttributedString()
 
+  /// Caches parsed `AttributedString` results keyed by markup content.
+  /// Prevents reparsing when views are recreated (e.g. scrolled off/on in a LazyVStack).
+  private static let parseCache: NSCache<NSString, ParseCacheEntry> = {
+    let cache = NSCache<NSString, ParseCacheEntry>()
+    cache.countLimit = 64
+    return cache
+  }()
+
+  private final class ParseCacheEntry {
+    let attributedString: AttributedString
+    init(_ attributedString: AttributedString) {
+      self.attributedString = attributedString
+    }
+  }
+
   private let markup: String
   private let parser: any MarkupParser
 
@@ -130,7 +145,14 @@ public struct StructuredText: View {
   }
 
   private func markupDidChange(_ markup: String) {
-    self.attributedString = (try? parser.attributedString(for: markup)) ?? .init()
+    let key = markup as NSString
+    if let cached = Self.parseCache.object(forKey: key) {
+      self.attributedString = cached.attributedString
+      return
+    }
+    let result = (try? parser.attributedString(for: markup)) ?? .init()
+    Self.parseCache.setObject(ParseCacheEntry(result), forKey: key)
+    self.attributedString = result
   }
 }
 
