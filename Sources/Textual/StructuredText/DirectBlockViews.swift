@@ -248,15 +248,18 @@ extension StructuredText {
     }
 
     public var body: some View {
+      // Textual uses 1-based indentation levels (from PresentationIntent),
+      // but the app passes 0-based depth. Convert here.
+      let level = depth + 1
       let marker = AnyView(
         unorderedListMarker.resolve(
-          configuration: .init(indentationLevel: depth)
+          configuration: .init(indentationLevel: level)
         )
       )
       let configuration = ListItemStyleConfiguration(
         marker: .init(marker),
         block: .init(InlineContent(inlineMarkdown, syntaxExtensions: syntaxExtensions)),
-        indentationLevel: depth
+        indentationLevel: level
       )
       AnyView(listItemStyle.resolve(configuration: configuration))
     }
@@ -289,10 +292,11 @@ extension StructuredText {
     }
 
     public var body: some View {
+      let level = depth + 1
       let marker = AnyView(
         orderedListMarker.resolve(
           configuration: .init(
-            indentationLevel: depth,
+            indentationLevel: level,
             ordinal: ordinal
           )
         )
@@ -300,7 +304,7 @@ extension StructuredText {
       let configuration = ListItemStyleConfiguration(
         marker: .init(marker),
         block: .init(InlineContent(inlineMarkdown, syntaxExtensions: syntaxExtensions)),
-        indentationLevel: depth
+        indentationLevel: level
       )
       AnyView(listItemStyle.resolve(configuration: configuration))
     }
