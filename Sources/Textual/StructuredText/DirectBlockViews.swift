@@ -20,8 +20,10 @@ import SwiftUI
 /// TextFragment pipeline with inline style support, attachments, and text selection.
 private struct InlineContent: View {
   @State private var attributedString = AttributedString()
+  @State private var suffixOpacity: Double = 1
 
   private let inlineMarkdown: String
+  private let isStreaming: Bool
   private let syntaxExtensions: [AttributedStringMarkdownParser.SyntaxExtension]
 
   /// Cache for inline-only parsed attributed strings.
@@ -40,13 +42,54 @@ private struct InlineContent: View {
 
   init(
     _ inlineMarkdown: String,
+    isStreaming: Bool = false,
     syntaxExtensions: [AttributedStringMarkdownParser.SyntaxExtension] = []
   ) {
     self.inlineMarkdown = inlineMarkdown
+    self.isStreaming = isStreaming
     self.syntaxExtensions = syntaxExtensions
   }
 
   var body: some View {
+    Group {
+      if isStreaming {
+        streamingText
+      } else {
+        normalText
+      }
+    }
+    .onChange(of: inlineMarkdown, initial: true) { old, new in
+      parseInline(new)
+      if isStreaming && !old.isEmpty && new.count > old.count {
+        suffixOpacity = 0
+        withAnimation(.easeIn(duration: 0.2)) {
+          suffixOpacity = 1
+        }
+      }
+    }
+    .lineLimit(nil)
+  }
+
+  /// Streaming path: uses Text concatenation to fade in the last word.
+  /// Sets foreground color alpha on the suffix AttributedString so both sides
+  /// remain `Text` and the `+` operator works for inline paragraph flow.
+  @ViewBuilder
+  private var streamingText: some View {
+    if let splitIdx = lastWordSplitIndex {
+      let prefix = AttributedString(attributedString[attributedString.startIndex..<splitIdx])
+      let suffix = {
+        var s = AttributedString(attributedString[splitIdx..<attributedString.endIndex])
+        s.foregroundColor = Color.primary.opacity(suffixOpacity)
+        return s
+      }()
+      (Text(prefix) + Text(suffix))
+    } else {
+      Text(attributedString)
+    }
+  }
+
+  /// Normal path: full TextFragment pipeline with attachments, inline styles, selection.
+  private var normalText: some View {
     WithAttachments(attributedString) {
       WithInlineStyle($0) {
         TextFragment($0)
@@ -54,10 +97,21 @@ private struct InlineContent: View {
       }
     }
     .coordinateSpace(.textContainer)
-    .onChange(of: inlineMarkdown, initial: true) { _, value in
-      parseInline(value)
+  }
+
+  /// Finds the start index of the last word in the attributed string.
+  private var lastWordSplitIndex: AttributedString.Index? {
+    let chars = attributedString.characters
+    guard chars.count > 1 else { return nil }
+    var idx = chars.index(before: chars.endIndex)
+    while idx > chars.startIndex {
+      if chars[idx].isWhitespace {
+        let next = chars.index(after: idx)
+        return next < chars.endIndex ? next : nil
+      }
+      idx = chars.index(before: idx)
     }
-    .lineLimit(nil)
+    return nil
   }
 
   private func parseInline(_ markup: String) {
@@ -81,19 +135,22 @@ extension StructuredText {
     @Environment(\.paragraphStyle) private var paragraphStyle
 
     private let inlineMarkdown: String
+    private let isStreaming: Bool
     private let syntaxExtensions: [AttributedStringMarkdownParser.SyntaxExtension]
 
     public init(
       inlineMarkdown: String,
+      isStreaming: Bool = false,
       syntaxExtensions: [AttributedStringMarkdownParser.SyntaxExtension] = []
     ) {
       self.inlineMarkdown = inlineMarkdown
+      self.isStreaming = isStreaming
       self.syntaxExtensions = syntaxExtensions
     }
 
     public var body: some View {
       let configuration = BlockStyleConfiguration(
-        label: .init(InlineContent(inlineMarkdown, syntaxExtensions: syntaxExtensions)),
+        label: .init(InlineContent(inlineMarkdown, isStreaming: isStreaming, syntaxExtensions: syntaxExtensions)),
         indentationLevel: 0
       )
       AnyView(paragraphStyle.resolve(configuration: configuration))
