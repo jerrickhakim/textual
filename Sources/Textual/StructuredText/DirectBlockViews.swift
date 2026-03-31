@@ -62,7 +62,7 @@ private struct InlineContent: View {
       parseInline(new)
       if isStreaming && !old.isEmpty && new.count > old.count {
         suffixOpacity = 0
-        withAnimation(.easeIn(duration: 0.2)) {
+        withAnimation(.easeOut(duration: 0.35)) {
           suffixOpacity = 1
         }
       }
